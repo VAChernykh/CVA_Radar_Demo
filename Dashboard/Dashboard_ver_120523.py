@@ -575,7 +575,7 @@ if (selected == main_pages[0]) or (TEST_MODE == 1):
 
 # In[97]:
 
-
+risk_treshold = 0
 if (selected == main_pages[3]) or (TEST_MODE == 1):
     try:
         with st.expander("Подробнее"):
@@ -595,6 +595,7 @@ if (selected == main_pages[3]) or (TEST_MODE == 1):
         company_sanctions_relevant = company_sanctions_display_1[company_sanctions_display_1[company_name_id].isin(need_companies)]
         
         company_sanctions_relevant['score'] = [round(float(i), 2) for i in company_sanctions_relevant['score'].values]
+        company_sanctions_relevant = company_sanctions_relevant[company_sanctions_relevant['score'] > risk_treshold]
         company_sanctions_relevant = company_sanctions_relevant.sort_values(by='score', ascending=False)
         company_sanctions_relevant = company_sanctions_relevant[need_columns].rename(need_columns_dict, axis=1)
         
