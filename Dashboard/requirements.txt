@@ -4,4 +4,4 @@ streamlit
 streamlit_option_menu
 streamlit-aggrid
 networkx
-pyvis.network
+pyvis
