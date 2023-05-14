@@ -23,14 +23,12 @@ pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
 import numpy as np
-import matplotlib.pyplot as plt
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_option_menu import option_menu
 from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode
 
 import networkx as netx
-import matplotlib.pyplot as plt
 from pyvis.network import Network
 
 
