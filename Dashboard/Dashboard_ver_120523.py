@@ -27,6 +27,7 @@ from streamlit_option_menu import option_menu
 from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode
 
 import networkx as netx
+import matplotlib.pyplot as plt
 from pyvis.network import Network
 
 import openpyxl
