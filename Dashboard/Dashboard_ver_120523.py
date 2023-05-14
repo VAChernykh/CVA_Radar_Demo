@@ -396,15 +396,8 @@ def streamlit_menu(example=3):
             default_index=0,  # optional
             orientation="horizontal",
             styles={
-#                 "container": {"padding": "0!important", "background-color": "#fafafa"},
-#                 "icon": {"font-size": "15px"},
-                 "nav-link": {"font-size": "12px"},
-#                     "text-align": "center",
-#                     "margin": "0px",
-#                     "--hover-color": "#eeeeee",
-#                 },
-#                 "nav-link-selected": {"background-color": "#fc4c4c"},
-             },
+                "nav-link": {"font-size": "12px"},
+                   },
         )
         return selected
 
