@@ -7,19 +7,19 @@
 #get_ipython().system('jupyter nbconvert --to script Dashboard_ver_120523.ipynb')
 
 
-# In[1]:
+# In[62]:
 
 
 TEST_MODE = 0
 
 
-# In[2]:
+# In[63]:
 
 
 import pandas as pd
 import numpy as np
-pd.set_option('display.max_columns', None)
-pd.set_option('display.max_rows', None)
+# pd.set_option('display.max_columns', None)
+# pd.set_option('display.max_rows', None)
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -28,6 +28,8 @@ from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode
 
 import networkx as netx
 from pyvis.network import Network
+
+import openpyxl
 
 
 # In[ ]:
@@ -38,18 +40,18 @@ from pyvis.network import Network
 
 # ##### Сбор данных
 
-# In[3]:
+# In[66]:
 
 
+input_data_folder = 'Common_data'
 #input_data_folder = '../Common_data'
-input_data_folder = "Common_data"
 
 
-# In[4]:
+# In[68]:
 
 
 input_data_file = "company_names.xlsx"
-company_names = pd.read_excel(input_data_folder + '/' + input_data_file)
+company_names = pd.read_excel(input_data_folder + '/' + input_data_file, engine='openpyxl')
 company_names = company_names.astype(str)
 
 if len(company_names['ID']) != len(company_names['ID']) or len(company_names['Исследумая компания']) != len(company_names['Исследумая компания']):
@@ -65,11 +67,11 @@ company_names.describe()
 
 
 
-# In[5]:
+# In[69]:
 
 
 input_data_file = "company_connections.xlsx"
-company_connections = pd.read_excel(input_data_folder + '/' + input_data_file)
+company_connections = pd.read_excel(input_data_folder + '/' + input_data_file, engine='openpyxl')
 company_connections = company_connections.astype(str)
 company_connections.head(1)
 
@@ -80,11 +82,11 @@ company_connections.head(1)
 
 
 
-# In[6]:
+# In[70]:
 
 
 input_data_file = "company_sanctions.xlsx"
-company_sanctions = pd.read_excel(input_data_folder + '/' + input_data_file)
+company_sanctions = pd.read_excel(input_data_folder + '/' + input_data_file, engine='openpyxl')
 company_sanctions = company_sanctions.astype(str)
 company_sanctions['score'] = company_sanctions['score'].astype(float)
 company_sanctions.head(1)
@@ -96,16 +98,16 @@ company_sanctions.head(1)
 
 
 
-# In[7]:
+# In[71]:
 
 
 input_data_file = "company_info.xlsx"
-company_info = pd.read_excel(input_data_folder + '/' + input_data_file)
+company_info = pd.read_excel(input_data_folder + '/' + input_data_file, engine='openpyxl')
 company_info = company_info.astype(str)
 company_info.head(1)
 
 
-# In[8]:
+# In[72]:
 
 
 #данные по компаниям
@@ -126,7 +128,7 @@ company_info.head(1)
 
 # - Блок фильтров
 
-# In[9]:
+# In[73]:
 
 
 company_name = 'Исследумая компания'
@@ -145,7 +147,7 @@ all_companies_id = company_df[company_name_id].values
 
 # - Блок базовых данных
 
-# In[10]:
+# In[74]:
 
 
 #данные по компаниям
@@ -161,13 +163,13 @@ company_info_display_1.head(1)
 
 # - Блок санкции
 
-# In[11]:
+# In[75]:
 
 
 company_risk_metric = 'Оценка риска'
 
 
-# In[12]:
+# In[76]:
 
 
 company_sanctions_display_1 = company_names.merge(company_sanctions
@@ -177,7 +179,7 @@ company_sanctions_display_1 = company_names.merge(company_sanctions
 company_sanctions_display_1['score'] = company_sanctions_display_1['score'].fillna(0) 
 
 
-# In[13]:
+# In[77]:
 
 
 company_sanctions_display_2 = company_sanctions_display_1.groupby('ID')['score'].agg(['mean'])\
@@ -194,7 +196,7 @@ company_sanctions_display_2.describe()
 
 # - Блок связям
 
-# In[14]:
+# In[78]:
 
 
 def all_connected_nodes(g, ids):
@@ -210,7 +212,7 @@ def all_connected_nodes(g, ids):
 
 
 
-# In[15]:
+# In[79]:
 
 
 #данные по связям
@@ -227,7 +229,7 @@ company_connections_display_1.head(1)
 
 
 
-# In[16]:
+# In[80]:
 
 
 #данные по нодам
@@ -238,7 +240,7 @@ company_connections_display_2.fillna(0, inplace=True)
 company_connections_display_2.head()
 
 
-# In[17]:
+# In[81]:
 
 
 company_connections_display_2.describe()
@@ -250,7 +252,7 @@ company_connections_display_2.describe()
 
 
 
-# In[18]:
+# In[82]:
 
 
 company_connections_net = company_connections_display_1.copy()
@@ -272,7 +274,7 @@ netx.draw_networkx(g)
 
 # - Блок резюме
 
-# In[19]:
+# In[83]:
 
 
 group_connections_group = []
@@ -289,7 +291,7 @@ group_connections = pd.DataFrame(list(zip(group_connections_group, group_connect
 group_connections.describe()
 
 
-# In[20]:
+# In[84]:
 
 
 company_sanctions_resume_1 = company_sanctions[['Group', 'score']]
@@ -310,7 +312,7 @@ company_resume_display_1.head()
 
 
 
-# In[21]:
+# In[85]:
 
 
 company_resume_display_2 = company_resume_display_1.merge(company_names
@@ -320,7 +322,7 @@ company_resume_display_2 = company_resume_display_1.merge(company_names
 company_resume_display_2.head()
 
 
-# In[22]:
+# In[86]:
 
 
 company_resume_display_2 = company_resume_display_2.groupby(company_name).agg({'Node':'nunique'
@@ -330,7 +332,7 @@ company_resume_display_2['score'] = [round(i, 2) for i in company_resume_display
 company_resume_display_2['score_group'] = [round(i, 2) for i in company_resume_display_2['score_group'].values]
 
 
-# In[23]:
+# In[87]:
 
 
 need_columns = ['Исследумая компания'
@@ -349,13 +351,13 @@ company_resume_display_2.head()
 
 # ##### Визуализация
 
-# In[24]:
+# In[88]:
 
 
 main_pages = ["Резюме", "Факты о компании", "Связи компаний", "Санкционные риски"]
 
 
-# In[25]:
+# In[89]:
 
 
 def streamlit_menu(example=3):
@@ -407,7 +409,7 @@ def streamlit_menu(example=3):
         return selected
 
 
-# In[26]:
+# In[90]:
 
 
 selected = streamlit_menu()
@@ -418,7 +420,7 @@ selected = streamlit_menu()
 
 # - Блок фильтров
 
-# In[27]:
+# In[91]:
 
 
 company_choice = st.sidebar.multiselect('Выберите компанию:', all_companies, all_companies)
@@ -433,7 +435,7 @@ company_choice_id = company_df[company_df[company_name].isin(company_choice)][co
 
 # - Блок базовых данных
 
-# In[28]:
+# In[92]:
 
 
 if (selected == main_pages[1]) or (TEST_MODE == 1):
@@ -460,14 +462,14 @@ if (selected == main_pages[1]) or (TEST_MODE == 1):
 
 # - Блок карты
 
-# In[29]:
+# In[93]:
 
 
 net = Network(directed=True)
 result_html_filename = r'company_network_analysis.html'
 
 
-# In[30]:
+# In[94]:
 
 
 need_companies = all_connected_nodes(g, company_choice_id)
@@ -481,7 +483,7 @@ company_connections_net_display['A'] = ['id' + str(i) for i in company_connectio
 company_connections_net_display['B'] = ['id' + str(i) for i in company_connections_net_display['B'].values]
 
 
-# In[57]:
+# In[95]:
 
 
 if (selected == main_pages[2]) or (TEST_MODE == 1):
@@ -544,7 +546,7 @@ if (selected == main_pages[2]) or (TEST_MODE == 1):
 
 # - Блок резюме
 
-# In[32]:
+# In[96]:
 
 
 if (selected == main_pages[0]) or (TEST_MODE == 1):
@@ -569,7 +571,7 @@ if (selected == main_pages[0]) or (TEST_MODE == 1):
 
 # - Блок санкции
 
-# In[33]:
+# In[97]:
 
 
 if (selected == main_pages[3]) or (TEST_MODE == 1):
@@ -600,18 +602,6 @@ if (selected == main_pages[3]) or (TEST_MODE == 1):
     except Exception as e:
         print('Ошибка: {}'.format(e))
         st.write('Ошибка:', str(e))
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
 
 
 # In[ ]:
