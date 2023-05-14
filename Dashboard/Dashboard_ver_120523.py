@@ -22,7 +22,6 @@ import time, math
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
-import numpy as np
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_option_menu import option_menu
