@@ -1,2 +1,9 @@
+pandas
+numpy
+time
+math
 streamlit
 streamlit_option_menu
+st_aggrid
+networkx
+pyvis.network
