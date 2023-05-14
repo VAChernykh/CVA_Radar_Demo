@@ -41,7 +41,8 @@ from pyvis.network import Network
 # In[3]:
 
 
-input_data_folder = '../Common_data'
+#input_data_folder = '../Common_data'
+input_data_folder = "VAChernykh/CVA_Radar_Demo/tree/main/Common_data"
 
 
 # In[4]:
