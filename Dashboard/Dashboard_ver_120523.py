@@ -1,180 +1,145 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-TEST_MODE = 0
-
 import pandas as pd
 import numpy as np
-
 import streamlit as st
 import streamlit.components.v1 as components
-from st_aggrid import AgGrid
-
 import networkx as netx
 from pyvis.network import Network
 
-import openpyxl
+# Настройка страницы
+st.set_page_config(layout="wide")
 
+# 1. Загрузка и очистка данных
 input_data_folder = 'Common_data'
 
-company_names = pd.read_excel(f"{input_data_folder}/company_names.xlsx", engine='openpyxl').astype(str)
+@st.cache_data
+def load_data():
+    # Загружаем и сразу очищаем ID от пробелов и приводим к str
+    names = pd.read_excel(f"{input_data_folder}/company_names.xlsx").astype(str)
+    names['ID'] = names['ID'].str.strip()
+    
+    conn = pd.read_excel(f"{input_data_folder}/company_connections.xlsx").astype(str)
+    conn['A'] = conn['A'].str.strip()
+    conn['B'] = conn['B'].str.strip()
+    
+    sanctions = pd.read_excel(f"{input_data_folder}/company_sanctions.xlsx")
+    sanctions['Group'] = sanctions['Group'].astype(str).str.strip()
+    sanctions['score'] = pd.to_numeric(sanctions['score'], errors='coerce').fillna(0)
+    
+    info = pd.read_excel(f"{input_data_folder}/company_info.xlsx").astype(str)
+    info['Компания'] = info['Компания'].str.strip()
+    
+    return names, conn, sanctions, info
 
-company_connections = pd.read_excel(f"{input_data_folder}/company_connections.xlsx", engine='openpyxl').astype(str)
+company_names, company_connections, company_sanctions, company_info = load_data()
 
-company_sanctions = pd.read_excel(f"{input_data_folder}/company_sanctions.xlsx", engine='openpyxl')
-company_sanctions['Group'] = company_sanctions['Group'].astype(str)
-company_sanctions['score'] = pd.to_numeric(company_sanctions['score'], errors='coerce')
-
-company_info = pd.read_excel(f"{input_data_folder}/company_info.xlsx", engine='openpyxl').astype(str)
-
+# 2. Подготовка справочников
+# Объединяем информацию с именами
 company_info = company_info.merge(company_names, left_on='Компания', right_on='ID', how='left')
+company_name_col = 'Исследумая компания' # Имя из company_names
+company_id_col = 'ID'
 
-company_name = 'Исследумая компания'
-company_name_id = 'ID'
+# Создаем чистый список компаний для выбора
+company_registry = company_info[[company_name_col, company_id_col]].drop_duplicates().dropna()
+all_companies_list = sorted(company_registry[company_name_col].unique())
 
-company_df = company_info[[company_name, company_name_id]].drop_duplicates()
-all_companies = company_info[company_name].drop_duplicates()
-all_companies_id = company_df[company_name_id].values
+# 3. Графовая логика (вынесена отдельно для стабильности)
+def get_all_connected_ids(connections_df, start_ids):
+    g = netx.Graph()
+    for _, row in connections_df.iterrows():
+        g.add_edge(row['A'], row['B'])
+    
+    result = set()
+    for start_id in start_ids:
+        if g.has_node(start_id):
+            # Находим все узлы в компоненте связности
+            connected = netx.node_connected_component(g, start_id)
+            result.update(connected)
+        else:
+            result.add(start_id)
+    return list(result)
 
-company_info_display_1 = company_info.copy()
-
-company_risk_metric = 'Оценка риска'
-
-company_sanctions_display_1 = company_names.merge(
-    company_sanctions, left_on='ID', right_on='Group', how='left'
+# 4. Интерфейс (Sidebar)
+st.sidebar.header("Фильтры")
+selected_names = st.sidebar.multiselect(
+    'Выберите компании для анализа:', 
+    options=all_companies_list,
+    default=all_companies_list[:3] if len(all_companies_list) > 0 else None
 )
 
-company_sanctions_display_1['score'] = company_sanctions_display_1['score'].fillna(0)
+# Получаем ID выбранных компаний
+selected_ids = company_registry[company_registry[company_name_col].isin(selected_names)][company_id_col].tolist()
 
-company_sanctions_display_2 = (
-    company_sanctions_display_1.groupby('ID')['score']
-    .mean()
-    .reset_index()
-    .rename(columns={'score': company_risk_metric})
-)
+# Рассчитываем связи один раз для всех вкладок
+connected_ids = get_all_connected_ids(company_connections, selected_ids)
 
-def all_connected_nodes(g, ids):
-    result = []
-    for i in ids:
-        try:
-            result += list(netx.shortest_path(g, i).keys())
-        except:
-            pass
-    return list(set(result))
+# 5. Основная навигация
+tabs = st.tabs(["Резюме", "Факты о компании", "Связи компаний", "Санкционные риски"])
 
-company_connections_display_1 = company_connections.merge(
-    company_names, left_on='Группа', right_on='ID', how='left'
-)
+# --- ВКЛАДКА: РЕЗЮМЕ ---
+with tabs[0]:
+    st.subheader("Сводный анализ рисков")
+    
+    # Фильтруем санкции только по связанным компаниям
+    relevant_sanctions = company_sanctions[company_sanctions['Group'].isin(connected_ids)]
+    
+    # Группируем данные для резюме
+    resume_data = []
+    for name in selected_names:
+        cid = company_registry[company_registry[company_name_col] == name][company_id_col].iloc[0]
+        # Ищем всех "родственников" именно этой компании
+        family = get_all_connected_ids(company_connections, [cid])
+        
+        own_risk = company_sanctions[company_sanctions['Group'] == cid]['score'].max()
+        family_risk = company_sanctions[company_sanctions['Group'].isin(family)]['score'].max()
+        
+        resume_data.append({
+            'Компания': name,
+            'Кол-во связей': len(family) - 1,
+            'Личный риск': round(float(own_risk), 2) if not pd.isna(own_risk) else 0.0,
+            'Макс. риск в связях': round(float(family_risk), 2) if not pd.isna(family_risk) else 0.0
+        })
+    
+    st.dataframe(pd.DataFrame(resume_data), use_container_width=True)
 
-company_connections_display_2 = company_names.merge(
-    company_sanctions_display_2, on='ID', how='left'
-)
+# --- ВКЛАДКА: ФАКТЫ ---
+with tabs[1]:
+    st.subheader("Данные из orginfo.uz")
+    display_info = company_info[company_info[company_id_col].isin(selected_ids)]
+    st.dataframe(display_info, use_container_width=True)
 
-company_connections_display_2[company_risk_metric] = company_connections_display_2[company_risk_metric].fillna(0)
+# --- ВКЛАДКА: СВЯЗИ ---
+with tabs[2]:
+    st.subheader("Визуализация графа связей")
+    if not connected_ids:
+        st.warning("Нет данных для построения графа")
+    else:
+        net = Network(height="600px", width="100%", directed=False, bgcolor="#ffffff", font_color="black")
+        
+        # Ребра
+        relevant_edges = company_connections[
+            company_connections['A'].isin(connected_ids) & 
+            company_connections['B'].isin(connected_ids)
+        ]
+        
+        # Узлы (собираем имена для подписей)
+        node_labels = company_names.set_index('ID')['Исследумая компания'].to_dict()
+        
+        for node in connected_ids:
+            label = node_labels.get(node, node)
+            color = "#ff4b4b" if node in selected_ids else "#1f77b4"
+            net.add_node(node, label=label, color=color)
+            
+        for _, row in relevant_edges.iterrows():
+            net.add_edge(row['A'], row['B'])
+        
+        net.save_graph("graph.html")
+        with open("graph.html", 'r', encoding='utf-8') as f:
+            components.html(f.read(), height=650)
 
-g = netx.Graph()
-for _, row in company_connections_display_1.iterrows():
-    g.add_edge(row['A'], row['B'])
-
-group_connections_group = []
-group_connections_company = []
-
-for i in all_companies_id:
-    for j in all_connected_nodes(g, [i]):
-        group_connections_group.append(i)
-        group_connections_company.append(j)
-
-group_connections = pd.DataFrame({
-    'Main_node': group_connections_group,
-    'Node': group_connections_company
-})
-
-company_resume_display_1 = group_connections.merge(
-    company_sanctions[['Group', 'score']],
-    left_on='Node',
-    right_on='Group',
-    how='left'
-)
-
-company_resume_display_1['score'] = company_resume_display_1['score'].fillna(0)
-
-company_resume_display_1['score_group'] = company_resume_display_1.apply(
-    lambda x: x.score if x['Main_node'] == x['Group'] else 0, axis=1
-)
-
-company_resume_display_2 = company_resume_display_1.merge(
-    company_names, left_on='Main_node', right_on='ID', how='left'
-)
-
-company_resume_display_2 = (
-    company_resume_display_2.groupby(company_name)
-    .agg({'Node': 'nunique', 'score_group': 'max', 'score': 'max'})
-    .reset_index()
-)
-
-company_resume_display_2['score'] = company_resume_display_2['score'].round(2)
-company_resume_display_2['score_group'] = company_resume_display_2['score_group'].round(2)
-
-company_resume_display_2.columns = [
-    'Исследумая компания',
-    'Кол-во связанных компаний',
-    'Макс. оценка санц. риска компании',
-    'Макс. оценка санц. риска связанных компаний'
-]
-
-main_pages = ["Резюме", "Факты о компании", "Связи компаний", "Санкционные риски"]
-
-selected = st.radio("", main_pages, horizontal=True)
-
-company_choice = st.sidebar.multiselect(
-    'Выберите компанию:', all_companies, all_companies
-)
-
-company_choice_id = company_df[
-    company_df[company_name].isin(company_choice)
-][company_name_id].values
-
-if selected == "Факты о компании" or TEST_MODE:
-    st.write('Источник: orginfo.uz')
-    AgGrid(company_info_display_1[
-        company_info_display_1[company_name].isin(company_choice)
-    ])
-
-if selected == "Связи компаний" or TEST_MODE:
-    net = Network(directed=True)
-
-    need_companies = all_connected_nodes(g, company_choice_id)
-
-    df_edges = company_connections_display_1[
-        company_connections_display_1['A'].isin(need_companies) |
-        company_connections_display_1['B'].isin(need_companies)
-    ]
-
-    df_nodes = company_connections_display_2[
-        company_connections_display_2['ID'].isin(need_companies)
-    ]
-
-    for _, row in df_nodes.iterrows():
-        net.add_node(row['ID'], label=row[company_name])
-
-    for _, row in df_edges.iterrows():
-        net.add_edge(row['A'], row['B'])
-
-    net.save_graph("graph.html")
-    HtmlFile = open("graph.html", 'r', encoding='utf-8')
-    components.html(HtmlFile.read(), height=700)
-
-if selected == "Резюме" or TEST_MODE:
-    st.write("Демо анализа компаний")
-    AgGrid(company_resume_display_2)
-
-if selected == "Санкционные риски" or TEST_MODE:
-    st.write("Источник: opensanctions.org")
-
-    need_companies = all_connected_nodes(g, company_choice_id)
-
-    df = company_sanctions_display_1[
-        company_sanctions_display_1['ID'].isin(need_companies)
-    ]
-
-    AgGrid(df)
+# --- ВКЛАДКА: РИСКИ ---
+with tabs[3]:
+    st.subheader("Детализация санкций")
+    risk_df = company_sanctions[company_sanctions['Group'].isin(connected_ids)].copy()
+    # Добавляем названия компаний для понятности
+    risk_df = risk_df.merge(company_names, left_on='Group', right_on='ID', how='left')
+    st.dataframe(risk_df[['Исследумая компания', 'Group', 'score']], use_container_width=True)
