@@ -5,15 +5,12 @@ import streamlit.components.v1 as components
 import networkx as netx
 from pyvis.network import Network
 
-# Настройка страницы
 st.set_page_config(layout="wide")
 
-# 1. Загрузка и очистка данных
 input_data_folder = 'Common_data'
 
 @st.cache_data
 def load_data():
-    # Загружаем и сразу очищаем ID от пробелов и приводим к str
     names = pd.read_excel(f"{input_data_folder}/company_names.xlsx").astype(str)
     names['ID'] = names['ID'].str.strip()
     
@@ -32,17 +29,13 @@ def load_data():
 
 company_names, company_connections, company_sanctions, company_info = load_data()
 
-# 2. Подготовка справочников
-# Объединяем информацию с именами
 company_info = company_info.merge(company_names, left_on='Компания', right_on='ID', how='left')
-company_name_col = 'Исследумая компания' # Имя из company_names
+company_name_col = 'Исследумая компания' 
 company_id_col = 'ID'
 
-# Создаем чистый список компаний для выбора
 company_registry = company_info[[company_name_col, company_id_col]].drop_duplicates().dropna()
 all_companies_list = sorted(company_registry[company_name_col].unique())
 
-# 3. Графовая логика (вынесена отдельно для стабильности)
 def get_all_connected_ids(connections_df, start_ids):
     g = netx.Graph()
     for _, row in connections_df.iterrows():
@@ -51,14 +44,12 @@ def get_all_connected_ids(connections_df, start_ids):
     result = set()
     for start_id in start_ids:
         if g.has_node(start_id):
-            # Находим все узлы в компоненте связности
             connected = netx.node_connected_component(g, start_id)
             result.update(connected)
         else:
             result.add(start_id)
     return list(result)
 
-# 4. Интерфейс (Sidebar)
 st.sidebar.header("Фильтры")
 selected_names = st.sidebar.multiselect(
     'Выберите компании для анализа:', 
@@ -66,27 +57,18 @@ selected_names = st.sidebar.multiselect(
     default=all_companies_list[:3] if len(all_companies_list) > 0 else None
 )
 
-# Получаем ID выбранных компаний
 selected_ids = company_registry[company_registry[company_name_col].isin(selected_names)][company_id_col].tolist()
-
-# Рассчитываем связи один раз для всех вкладок
 connected_ids = get_all_connected_ids(company_connections, selected_ids)
 
-# 5. Основная навигация
-tabs = st.tabs(["Резюме", "Факты о компании", "Связи компаний", "Санкционные риски"])
+tabs = st.tabs(["Резюме", "Связи компаний", "Санкционные риски", "Факты о компании"])
 
-# --- ВКЛАДКА: РЕЗЮМЕ ---
 with tabs[0]:
     st.subheader("Сводный анализ рисков")
-    
-    # Фильтруем санкции только по связанным компаниям
     relevant_sanctions = company_sanctions[company_sanctions['Group'].isin(connected_ids)]
     
-    # Группируем данные для резюме
     resume_data = []
     for name in selected_names:
         cid = company_registry[company_registry[company_name_col] == name][company_id_col].iloc[0]
-        # Ищем всех "родственников" именно этой компании
         family = get_all_connected_ids(company_connections, [cid])
         
         own_risk = company_sanctions[company_sanctions['Group'] == cid]['score'].max()
@@ -101,27 +83,21 @@ with tabs[0]:
     
     st.dataframe(pd.DataFrame(resume_data), use_container_width=True)
 
-# --- ВКЛАДКА: ФАКТЫ ---
 with tabs[1]:
-    st.subheader("Данные из orginfo.uz")
-    display_info = company_info[company_info[company_id_col].isin(selected_ids)]
-    st.dataframe(display_info, use_container_width=True)
-
-# --- ВКЛАДКА: СВЯЗИ ---
-with tabs[2]:
     st.subheader("Визуализация графа связей")
     if not connected_ids:
         st.warning("Нет данных для построения графа")
     else:
         net = Network(height="600px", width="100%", directed=False, bgcolor="#ffffff", font_color="black")
         
-        # Ребра
+        net.toggle_physics(True)
+        net.barnes_hut(gravity=-3000, central_gravity=0.3, spring_length=200, spring_strength=0.05, damping=0.09)
+
         relevant_edges = company_connections[
             company_connections['A'].isin(connected_ids) & 
             company_connections['B'].isin(connected_ids)
         ]
         
-        # Узлы (собираем имена для подписей)
         node_labels = company_names.set_index('ID')['Исследумая компания'].to_dict()
         
         for node in connected_ids:
@@ -136,10 +112,13 @@ with tabs[2]:
         with open("graph.html", 'r', encoding='utf-8') as f:
             components.html(f.read(), height=650)
 
-# --- ВКЛАДКА: РИСКИ ---
-with tabs[3]:
+with tabs[2]:
     st.subheader("Детализация санкций")
     risk_df = company_sanctions[company_sanctions['Group'].isin(connected_ids)].copy()
-    # Добавляем названия компаний для понятности
     risk_df = risk_df.merge(company_names, left_on='Group', right_on='ID', how='left')
     st.dataframe(risk_df[['Исследумая компания', 'Group', 'score']], use_container_width=True)
+
+with tabs[3]:
+    st.subheader("Данные из orginfo.uz")
+    display_info = company_info[company_info[company_id_col].isin(selected_ids)]
+    st.dataframe(display_info, use_container_width=True)
